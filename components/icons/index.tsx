@@ -9,3 +9,4 @@ export { Play as PlayIcon } from "lucide-react";
 export { Pause as PauseIcon } from "lucide-react";
 export { RotateCcw as RefreshIcon } from "lucide-react";
 export { Home as HomeIcon } from "lucide-react";
+export { Volume2 as VolumeIcon } from "lucide-react";
