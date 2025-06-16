@@ -14,6 +14,7 @@ import {
     generateStoryFromUserPrompt,
     generateRandomWorldSetting,
     continueStoryInWorld,
+    generateStoryAndGoalFromUserPrompt,
 } from "./services/geminiService";
 
 type AppMode = "initial" | "world_exploration" | "story_direct";
@@ -23,6 +24,9 @@ const App: React.FC = () => {
     const [appMode, setAppMode] = useState<AppMode>("initial");
 
     const [directStory, setDirectStory] = useState<string | null>(null);
+    const [goal, setGoal] = useState<string | null>(null);
+    const [directStoryParts, setDirectStoryParts] = useState<string[]>([]);
+    const [directStoryAction, setDirectStoryAction] = useState<string>('');
 
     const [worldTheme, setWorldTheme] = useState<string | null>(null);
     const [initialWorldDescription, setInitialWorldDescription] = useState<string | null>(null);
@@ -69,35 +73,70 @@ const App: React.FC = () => {
         setIsLoading(false);
     };
 
-    const handleDirectStorySubmit = useCallback(
-        async (prompt: string) => {
-            if (apiKeyMissing) {
-                setError("AI features are disabled. Administrator: Please configure the API key.");
-                return;
-            }
-            setIsLoading(true);
-            setLoadingMessage("Our story wizards are hard at work...");
-            setDirectStory(null);
-            setError(null);
-            setAppMode("story_direct");
+    const handleDirectStorySubmit = useCallback(async (prompt: string) => {
+        if (apiKeyMissing) {
+            setError("AI features are disabled. Administrator: Please configure the API key.");
+            return;
+        }
+        setIsLoading(true);
+        setLoadingMessage("Our story wizards are hard at work...");
+        setDirectStory(null);
+        setDirectStoryParts([]);
+        setDirectStoryAction('');
+        setError(null);
+        setAppMode("story_direct");
 
-            try {
-                const generatedStory = await generateStoryFromUserPrompt(prompt);
-                setDirectStory(generatedStory);
-            } catch (err) {
-                if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError("An unexpected error occurred while crafting your story.");
-                }
-                setAppMode("initial");
-                console.error("Error generating direct story:", err);
-            } finally {
-                setIsLoading(false);
+        try {
+            const [generatedStory, generatedGoal] = await generateStoryAndGoalFromUserPrompt(prompt);
+            setGoal(generatedGoal);
+            setDirectStory(generatedStory);
+            setDirectStoryParts([generatedStory]);
+        } catch (err) {
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError("An unexpected error occurred while crafting your story.");
             }
-        },
-        [apiKeyMissing],
-    );
+            setAppMode("initial");
+            console.error("Error generating direct story:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [apiKeyMissing]);
+
+    const handleContinueDirectStory = useCallback(async () => {
+        if (apiKeyMissing || !directStory || !directStoryAction.trim()) {
+            setError("Cannot continue: missing story, API key, or your action.");
+            return;
+        }
+        setIsLoading(true);
+        setLoadingMessage("Weaving the next part of your story...");
+        setError(null);
+
+        try {
+            const continuationPrompt = `
+Previous story:
+${directStoryParts.join('\n\n')}
+
+The character/user wants to: "${directStoryAction.trim()}"
+
+Continue the story in 1-2 engaging paragraphs, maintaining the same style and tone.
+`;
+            const nextPart = await generateStoryFromUserPrompt(continuationPrompt);
+            setDirectStoryParts((prevParts: string[]) => [...prevParts, `\n\nYour action: ${directStoryAction.trim()}`, `\n\n${nextPart}`]);
+            setDirectStory((prevParts: string | null) => prevParts ? prevParts + `\n\nYour action: ${directStoryAction.trim()}\n\n${nextPart}` : nextPart);
+            setDirectStoryAction('');
+        } catch (err) {
+            if (err instanceof Error) {
+                setError(err.message);
+            } else {
+                setError("An unexpected error occurred while continuing the story.");
+            }
+            console.error("Error continuing direct story:", err);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [apiKeyMissing, directStory, directStoryParts, directStoryAction]);
 
     const handleRandomizeWorld = useCallback(async () => {
         if (apiKeyMissing) {
@@ -246,14 +285,57 @@ const App: React.FC = () => {
                     <div className="flex items-center gap-3 mb-6">
                         <BookOpenIcon className="w-8 h-8 text-secondary" />
                         <h2 className="text-2xl font-bold text-brand-secondary">Your Adventure Unfolds...</h2>
+                        <h1>{goal}</h1>
                     </div>
 
                     <StoryDisplay story={directStory} />
 
-                    <Button onClick={resetToInitial} variant="ghost" size="lg" className="w-full mt-6">
-                        <HomeIcon className="w-4 h-4" />
-                        Start a new story
-                    </Button>
+                    <Card className="bg-brand-light/90 border-amber-200">
+                        <CardContent className="p-6">
+                            <form onSubmit={(e) => { e.preventDefault(); handleContinueDirectStory(); }} className="space-y-4">
+                                <div className="space-y-2">
+                                    <label htmlFor="story-action" className="block text-lg font-semibold text-brand-text">
+                                        What happens next in your story?
+                                    </label>
+                                    <textarea
+                                        id="story-action"
+                                        value={directStoryAction}
+                                        onChange={(e) => setDirectStoryAction(e.target.value)}
+                                        placeholder="e.g., The adventurer decides to explore the ancient ruins, or The wizard attempts to decipher the mysterious scroll..."
+                                        className={cn(
+                                            "w-full p-3 border-2 border-amber-300 rounded-lg shadow-sm",
+                                            "focus:ring-2 focus:ring-brand-primary focus:border-brand-primary",
+                                            "transition-colors duration-200 resize-none",
+                                            "bg-white/90 placeholder-brand-soft-text text-brand-text"
+                                        )}
+                                        rows={3}
+                                        disabled={isLoading}
+                                    />
+                                </div>
+                                <div className="flex gap-3">
+                                    <Button
+                                        type="submit"
+                                        disabled={isLoading || !directStoryAction.trim()}
+                                        variant="magic"
+                                        size="lg"
+                                        className="flex-1"
+                                    >
+                                        <MagicWandIcon className="w-5 h-5 mr-2" />
+                                        Continue Story!
+                                    </Button>
+                                    <Button
+                                        onClick={resetToInitial}
+                                        variant="ghost"
+                                        size="lg"
+                                        className="text-brand-soft-text hover:text-brand-primary"
+                                    >
+                                        <HomeIcon className="w-4 h-4 mr-2" />
+                                        Start New Story
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </Card>
                 </div>
             );
         }

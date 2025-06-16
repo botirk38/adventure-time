@@ -111,13 +111,53 @@ export const generateStoryFromUserPrompt = async (userPrompt: string): Promise<s
             topK: 40,
         },
     });
-
     const storyText = response.text;
+
     if (!storyText || storyText.trim() === "") {
         console.warn("Gemini API returned an empty story for prompt:", userPrompt);
         throw new Error("Gemini API returned an empty story.");
     }
     return storyText.trim();
+}
+
+export const generateStoryAndGoalFromUserPrompt = async (userPrompt: string): Promise<string[]> => {
+    const client = getAiClient();
+
+    const response: GenerateContentResponse = await client.models.generateContent({
+        model: GEMINI_MODEL_NAME,
+        contents: userPrompt,
+        config: {
+            systemInstruction: STORY_SYSTEM_INSTRUCTION,
+            temperature: 0.75,
+            topP: 0.95,
+            topK: 40,
+        },
+    });
+
+    const goalPrompt = response.text + ". Create a goal the user should acheive in 1 sentence";
+
+    const response2: GenerateContentResponse = await client.models.generateContent({
+        model: GEMINI_MODEL_NAME,
+        contents: goalPrompt,
+        config: {
+            systemInstruction: STORY_SYSTEM_INSTRUCTION,
+            temperature: 0.75,
+            topP: 0.95,
+            topK: 40,
+        },
+    });
+
+    const storyText = response.text;
+    const goalText = response2.text;
+    if (!goalText || goalText.trim() === "") {
+        console.warn("Gemini API returned an empty goal for prompt:", userPrompt);
+        throw new Error("Gemini API returned an empty story.");
+    }
+    if (!storyText || storyText.trim() === "") {
+        console.warn("Gemini API returned an empty story for prompt:", userPrompt);
+        throw new Error("Gemini API returned an empty story.");
+    }
+    return [storyText.trim(), goalText.trim()];
 };
 
 export const generateRandomWorldSetting = async (): Promise<{
