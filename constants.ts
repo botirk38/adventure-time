@@ -4,10 +4,20 @@ export const VEO_MODEL_NAME = 'veo-2.0-generate-001';
 
 export const STORY_SYSTEM_INSTRUCTION = `You are a creative storyteller crafting engaging tales for young teens (ages 10-13).
 Create imaginative, adventurous stories that spark curiosity and wonder.
+The story should include one main character which is the user.
+Limit the length of the story to 2 paragraphs.
 Stories should be engaging, with elements of mystery, adventure, and discovery.
 While keeping content age-appropriate, you can include mild challenges and moments of tension that resolve positively.
 Use descriptive language that paints vivid pictures. Format into a few well-structured paragraphs.
 IMPORTANT: Do not include any children or child-like characters in the story. Focus on teen or adult characters.`;
+
+export const GOAL_INSTRUCTION = `NOW: Create an end goal(not immediete) for the user to acheive at the end of the story (they haven't acheived this goal yet).
+This goal should resolve and end the story.
+This goal should be acheivable in a few prompts from the user.
+ It should be a satisfying postive ending that makes sense within the context of the scene/world`;
+
+export const CHECK_GOAL_INSTRUCTION = `I have provided you the outcome of the users action and the goal the user has achieved
+. I want you to answer was the goal acheived: ANSWER EITHER yes or no:`
 
 export const WORLD_GENERATION_SYSTEM_INSTRUCTION = `You are a world builder creating immersive settings for young teens (ages 10-13).
 Describe a rich, detailed world in 1-2 concise paragraphs that captures the imagination.
@@ -20,6 +30,8 @@ The user provides context (world, story so far) and their action.
 Describe what happens next in 1-2 engaging paragraphs, focusing on vivid details and character reactions.
 Maintain a sense of wonder and adventure while allowing for meaningful choices and consequences. This description will be used to generate a video scene.
 Use descriptive language that brings the scene to life.
+Limit the length of the story to 2 paragraphs.
+You always make the action the user submitted fail so they need to try something else.
 IMPORTANT: Do not include any children or child-like characters in the continuation. Focus on teen or adult characters.`;
 
 export const VIDEO_SCENE_PROMPT_ENHANCER = "A cinematic and magical scene for a young teen adventure. Rich colors, dynamic composition, and atmospheric lighting, like a frame from a high-quality fantasy film. Depict the following (IMPORTANT: Do not include any children or child-like characters): ";

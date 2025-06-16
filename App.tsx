@@ -17,12 +17,18 @@ import {
     generateStoryAndGoalFromUserPrompt,
 } from "./services/geminiService";
 
+/*
+END THE STORY WHEN THE GOAL IS ACHEIVED.
+*/
+
+
 type AppMode = "initial" | "world_exploration" | "story_direct";
 
 const App: React.FC = () => {
     const [apiKeyMissing, setApiKeyMissing] = useState<boolean>(false);
     const [appMode, setAppMode] = useState<AppMode>("initial");
 
+    const [goalAchieved, setGoalAchieved] = useState<boolean>(false);
     const [directStory, setDirectStory] = useState<string | null>(null);
     const [goal, setGoal] = useState<string | null>(null);
     const [directStoryParts, setDirectStoryParts] = useState<string[]>([]);
@@ -122,7 +128,8 @@ The character/user wants to: "${directStoryAction.trim()}"
 
 Continue the story in 1-2 engaging paragraphs, maintaining the same style and tone.
 `;
-            const nextPart = await generateStoryFromUserPrompt(continuationPrompt);
+            const {story: nextPart, achieved: goalFinished} = await generateStoryFromUserPrompt(continuationPrompt, goal);
+            setGoalAchieved((goalFinished))
             setDirectStoryParts((prevParts: string[]) => [...prevParts, `\n\nYour action: ${directStoryAction.trim()}`, `\n\n${nextPart}`]);
             setDirectStory((prevParts: string | null) => prevParts ? prevParts + `\n\nYour action: ${directStoryAction.trim()}\n\n${nextPart}` : nextPart);
             setDirectStoryAction('');
@@ -199,7 +206,7 @@ Continue the story in 1-2 engaging paragraphs, maintaining the same style and to
             );
             setStoryParts((prevParts: string[]) => [
                 ...prevParts,
-                `\n\nYour action: ${currentUserAction.trim()}`,
+                `\n\nYour action: ${currentUserAction.trim()}` + 
                 `\n\n${nextSceneTextDescription}`,
             ]);
 
@@ -287,7 +294,10 @@ Continue the story in 1-2 engaging paragraphs, maintaining the same style and to
                         <h2 className="text-2xl font-bold text-brand-secondary">Your Adventure Unfolds...</h2>
                         <h1>{goal}</h1>
                     </div>
-
+                    <div>
+                        <p>was the goal achieved?</p>
+                        {goalAchieved && <h1>YOU ACHIEVED THE GOAL</h1>}
+                    </div>
                     <StoryDisplay story={directStory} />
 
                     <Card className="bg-brand-light/90 border-amber-200">

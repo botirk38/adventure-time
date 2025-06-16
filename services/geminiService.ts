@@ -8,6 +8,8 @@ import {
     STORY_CONTINUATION_SYSTEM_INSTRUCTION,
     RANDOM_WORLD_THEMES,
     VIDEO_SCENE_PROMPT_ENHANCER,
+    GOAL_INSTRUCTION,
+    CHECK_GOAL_INSTRUCTION,
 } from "../constants";
 
 let ai: GoogleGenAI | null = null;
@@ -98,7 +100,7 @@ export const generateVideoSceneFromText = async (
     return { videoUrl: objectUrl, videoMimeType };
 };
 
-export const generateStoryFromUserPrompt = async (userPrompt: string): Promise<string> => {
+export const generateStoryFromUserPrompt = async (userPrompt: string, goal: string | null): Promise<{story: string, achieved: boolean}> => {
     const client = getAiClient();
 
     const response: GenerateContentResponse = await client.models.generateContent({
@@ -117,7 +119,28 @@ export const generateStoryFromUserPrompt = async (userPrompt: string): Promise<s
         console.warn("Gemini API returned an empty story for prompt:", userPrompt);
         throw new Error("Gemini API returned an empty story.");
     }
-    return storyText.trim();
+
+    // now check if the goal was acheived. 
+    const response2: GenerateContentResponse = await client.models.generateContent({
+        model: GEMINI_MODEL_NAME,
+        contents: "story: " + storyText + " AND goal: " + goal,
+        config: {
+            systemInstruction: CHECK_GOAL_INSTRUCTION,
+            temperature: 0.75,
+            topP: 0.95,
+            topK: 40,
+        },
+    })
+    const checkGoalText = response2.text;
+    if (!checkGoalText || checkGoalText.trim() === "") {
+        console.warn("Gemini API returned an empty story for goal check:", userPrompt);
+        throw new Error("Gemini API returned an empty story.");
+    }
+    if (checkGoalText.trim() === "yes") {
+        return {story: storyText.trim(), achieved: true};
+    } else {
+        return {story: storyText.trim(), achieved: false};
+    }
 }
 
 export const generateStoryAndGoalFromUserPrompt = async (userPrompt: string): Promise<string[]> => {
@@ -140,7 +163,7 @@ export const generateStoryAndGoalFromUserPrompt = async (userPrompt: string): Pr
         model: GEMINI_MODEL_NAME,
         contents: goalPrompt,
         config: {
-            systemInstruction: STORY_SYSTEM_INSTRUCTION,
+            systemInstruction: STORY_SYSTEM_INSTRUCTION + GOAL_INSTRUCTION,
             temperature: 0.75,
             topP: 0.95,
             topK: 40,
