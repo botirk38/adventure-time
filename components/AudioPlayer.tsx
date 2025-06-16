@@ -10,13 +10,7 @@ interface AudioPlayerProps {
     className?: string;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({
-    audioUrl,
-    onPlay,
-    onPause,
-    onEnded,
-    className = "",
-}) => {
+export const AudioPlayer: React.FC<AudioPlayerProps> = ({ audioUrl, onPlay, onPause, onEnded, className = "" }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
@@ -34,14 +28,34 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             onEnded?.();
         };
 
+        const handleError = (e: Event) => {
+            console.error("Audio element error:", e);
+            console.log("Audio URL:", audioUrl);
+            setIsPlaying(false);
+        };
+
+        const handleLoadStart = () => {
+            console.log("Audio loading started for URL:", audioUrl);
+        };
+
+        const handleLoadedData = () => {
+            console.log("Audio data loaded successfully");
+        };
+
         audio.addEventListener("timeupdate", handleTimeUpdate);
         audio.addEventListener("durationchange", handleDurationChange);
         audio.addEventListener("ended", handleEnded);
+        audio.addEventListener("error", handleError);
+        audio.addEventListener("loadstart", handleLoadStart);
+        audio.addEventListener("loadeddata", handleLoadedData);
 
         return () => {
             audio.removeEventListener("timeupdate", handleTimeUpdate);
             audio.removeEventListener("durationchange", handleDurationChange);
             audio.removeEventListener("ended", handleEnded);
+            audio.removeEventListener("error", handleError);
+            audio.removeEventListener("loadstart", handleLoadStart);
+            audio.removeEventListener("loadeddata", handleLoadedData);
         };
     }, [onEnded]);
 
@@ -54,7 +68,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         }
     }, [audioUrl]);
 
-    const handlePlayPause = () => {
+    const handlePlayPause = async () => {
         const audio = audioRef.current;
         if (!audio || !audioUrl) return;
 
@@ -63,9 +77,17 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
             setIsPlaying(false);
             onPause?.();
         } else {
-            audio.play();
-            setIsPlaying(true);
-            onPlay?.();
+            try {
+                await audio.play();
+                setIsPlaying(true);
+                onPlay?.();
+            } catch (error) {
+                console.error("Audio playback failed:", error);
+                console.log("Audio URL:", audioUrl);
+                console.log("Audio element:", audio);
+                // Reset playing state on error
+                setIsPlaying(false);
+            }
         }
     };
 
@@ -100,11 +122,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
                 size="sm"
                 className="h-8 w-8 rounded-full bg-amber-400/20 border border-amber-400/40 text-white hover:text-amber-300 hover:bg-amber-400/30"
             >
-                {isPlaying ? (
-                    <PauseIcon className="h-3 w-3" />
-                ) : (
-                    <PlayIcon className="h-3 w-3" />
-                )}
+                {isPlaying ? <PauseIcon className="h-3 w-3" /> : <PlayIcon className="h-3 w-3" />}
             </Button>
 
             <Button

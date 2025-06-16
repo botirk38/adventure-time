@@ -67,6 +67,54 @@ const base64ToBlob = (base64Data: string, mimeType: string): Blob => {
     return new Blob([bytes], { type: mimeType });
 };
 
+const createWavBlob = (
+    pcmData: Uint8Array,
+    sampleRate: number = 24000,
+    channels: number = 1,
+    bitsPerSample: number = 16,
+): Blob => {
+    const bytesPerSample = bitsPerSample / 8;
+    const blockAlign = channels * bytesPerSample;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = pcmData.length;
+    const fileSize = 36 + dataSize;
+
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    // Helper to write strings
+    const writeString = (offset: number, string: string) => {
+        for (let i = 0; i < string.length; i++) {
+            view.setUint8(offset + i, string.charCodeAt(i));
+        }
+    };
+
+    // RIFF header
+    writeString(0, "RIFF");
+    view.setUint32(4, fileSize, true);
+    writeString(8, "WAVE");
+
+    // fmt chunk
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, 1, true); // audio format (PCM)
+    view.setUint16(22, channels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+
+    // data chunk
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    // Copy PCM data
+    const audioData = new Uint8Array(buffer, 44);
+    audioData.set(pcmData);
+
+    return new Blob([buffer], { type: "audio/wav" });
+};
+
 const getRandomTheme = (): string => {
     return RANDOM_WORLD_THEMES[Math.floor(Math.random() * RANDOM_WORLD_THEMES.length)];
 };
@@ -237,6 +285,8 @@ export const generateSceneNarration = async (sceneText: string): Promise<AudioRe
         // Create a more engaging narration prompt
         const narratorPrompt = `Narrate this story scene in an engaging, immersive way with a warm, storytelling voice: "${sceneText.trim()}"`;
 
+        console.log("Requesting TTS for scene text (length:", sceneText.length, "characters)");
+
         const response = await client.models.generateContent({
             model: AI_MODELS.TTS,
             contents: [{ parts: [{ text: narratorPrompt }] }],
@@ -250,16 +300,40 @@ export const generateSceneNarration = async (sceneText: string): Promise<AudioRe
             },
         });
 
+        console.log("TTS response received:", {
+            candidatesLength: response.candidates?.length,
+            hasContent: !!response.candidates?.[0]?.content,
+            partsLength: response.candidates?.[0]?.content?.parts?.length,
+        });
+
         const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (!audioData) {
+            console.error("TTS response structure:", JSON.stringify(response, null, 2));
             throw new Error("No audio data received from TTS generation.");
         }
 
-        const audioMimeType = "audio/wav";
-        const audioBlob = base64ToBlob(audioData, audioMimeType);
-        const audioUrl = URL.createObjectURL(audioBlob);
+        console.log("Audio data received (base64 length:", audioData.length, "characters)");
 
-        console.log("Scene narration successfully generated");
+        // Convert base64 to PCM data (Gemini TTS returns 16-bit PCM at 24kHz)
+        const binaryString = atob(audioData);
+        const pcmData = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            pcmData[i] = binaryString.charCodeAt(i);
+        }
+
+        console.log("PCM data converted (length:", pcmData.length, "bytes)");
+
+        // Create proper WAV file with headers (24kHz, 16-bit, mono)
+        const audioBlob = createWavBlob(pcmData, 24000, 1, 16);
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audioMimeType = "audio/wav";
+
+        console.log("Scene narration successfully generated:", {
+            blobSize: audioBlob.size,
+            blobType: audioBlob.type,
+            audioUrl: audioUrl.substring(0, 50) + "...",
+        });
+
         return { audioUrl, audioMimeType };
     } catch (error) {
         console.error("Scene narration error:", error);
