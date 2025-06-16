@@ -1,10 +1,8 @@
+import React from "react";
+import { LoaderIcon } from "@/components/icons";
 
-import React from 'react';
-
-export const LoadingSpinner: React.FC = () => {
-  return (
+export const LoadingSpinner: React.FC = () => (
     <div className="flex items-center justify-center">
-      <div className="w-16 h-16 border-8 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+        <LoaderIcon className="w-8 h-8 text-primary animate-spin" />
     </div>
-  );
-};
+);

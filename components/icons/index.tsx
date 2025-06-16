@@ -1,0 +1,11 @@
+export { Sparkles as SparkleIcon } from "lucide-react";
+export { BookOpen as BookOpenIcon } from "lucide-react";
+export { Dice6 as DiceIcon } from "lucide-react";
+export { Wand2 as MagicWandIcon } from "lucide-react";
+export { Loader2 as LoaderIcon } from "lucide-react";
+export { AlertTriangle as AlertIcon } from "lucide-react";
+export { X as CloseIcon } from "lucide-react";
+export { Play as PlayIcon } from "lucide-react";
+export { Pause as PauseIcon } from "lucide-react";
+export { RotateCcw as RefreshIcon } from "lucide-react";
+export { Home as HomeIcon } from "lucide-react";
