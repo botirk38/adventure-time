@@ -1,155 +1,194 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { StoryInput } from "./components/StoryInput";
-import { StoryDisplay } from "./components/StoryDisplay";
 import { LoadingSpinner } from "./components/LoadingSpinner";
-import { ApiKeyMissingBanner } from "./components/ApiKeyMissingBanner";
 import { VideoBackgroundDisplay } from "./components/VideoBackgroundDisplay";
 import { Button } from "./components/ui/button";
 import { Card, CardContent } from "./components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "./components/ui/alert";
-import { SparkleIcon, BookOpenIcon, DiceIcon, MagicWandIcon, HomeIcon, AlertIcon } from "./components/icons";
+import { SparkleIcon, DiceIcon, MagicWandIcon, HomeIcon, AlertIcon } from "./components/icons";
 import { cn } from "./lib/utils";
 
 import {
-    generateStoryFromUserPrompt,
     generateRandomWorldSetting,
+    generateWorldSettingFromPrompt,
     continueStoryInWorld,
 } from "./services/geminiService";
 
-type AppMode = "initial" | "world_exploration" | "story_direct";
+// Types
+type AppMode = "initial" | "world_exploration";
+
+interface AppState {
+    appMode: AppMode;
+    worldTheme: string | null;
+    initialWorldDescription: string | null;
+    currentSceneVideoUrl: string | null;
+    currentSceneVideoMimeType: string | undefined;
+    storyParts: string[];
+    currentUserAction: string;
+    isLoading: boolean;
+    loadingMessage: string;
+    error: string | null;
+}
+
+// Constants
+const LOADING_MESSAGES = {
+    CREATING_WORLD: "Conjuring your story world and its sights (this may take a few minutes)...",
+    RANDOM_WORLD: "Conjuring a random world and its sights (this may take a few minutes)...",
+    CONTINUING_STORY: "Weaving the next part of your adventure and its video (this may take a few minutes)...",
+} as const;
+
+const ERROR_MESSAGES = {
+    WORLD_CREATION: "An unexpected error occurred while creating your story world.",
+    RANDOM_WORLD: "An unexpected error occurred while creating a new world.",
+    STORY_CONTINUATION: "An unexpected error occurred while continuing the adventure.",
+    MISSING_DETAILS: "Cannot continue: missing world details or your action.",
+} as const;
 
 const App: React.FC = () => {
-    const [apiKeyMissing, setApiKeyMissing] = useState<boolean>(false);
-    const [appMode, setAppMode] = useState<AppMode>("initial");
+    // State management
+    const [state, setState] = useState<AppState>({
+        appMode: "initial",
+        worldTheme: null,
+        initialWorldDescription: null,
+        currentSceneVideoUrl: null,
+        currentSceneVideoMimeType: undefined,
+        storyParts: [],
+        currentUserAction: "",
+        isLoading: false,
+        loadingMessage: "",
+        error: null,
+    });
 
-    const [directStory, setDirectStory] = useState<string | null>(null);
-
-    const [worldTheme, setWorldTheme] = useState<string | null>(null);
-    const [initialWorldDescription, setInitialWorldDescription] = useState<string | null>(null);
-    const [currentSceneVideoUrl, setCurrentSceneVideoUrl] = useState<string | null>(null);
-    const [currentSceneVideoMimeType, setCurrentSceneVideoMimeType] = useState<string | undefined>(undefined);
-    const [storyParts, setStoryParts] = useState<string[]>([]);
-    const [currentUserAction, setCurrentUserAction] = useState<string>("");
-
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [loadingMessage, setLoadingMessage] = useState<string>("");
-    const [error, setError] = useState<string | null>(null);
-
+    // Cleanup video URLs when they change
     useEffect(() => {
-        if (!process.env.API_KEY) {
-            setApiKeyMissing(true);
-            console.warn("API_KEY environment variable is not set. Story generation will not work.");
-        }
-    }, []);
-
-    useEffect(() => {
-        // Cleanup for video Object URLs
-        const videoUrlToClean = currentSceneVideoUrl;
+        const videoUrlToClean = state.currentSceneVideoUrl;
         return () => {
-            if (videoUrlToClean && videoUrlToClean.startsWith("blob:")) {
+            if (videoUrlToClean?.startsWith("blob:")) {
                 URL.revokeObjectURL(videoUrlToClean);
-                // console.log("Revoked video Object URL:", videoUrlToClean);
             }
         };
-    }, [currentSceneVideoUrl]);
+    }, [state.currentSceneVideoUrl]);
 
-    const resetToInitial = () => {
-        setAppMode("initial");
-        setDirectStory(null);
-        setWorldTheme(null);
-        setInitialWorldDescription(null);
-        if (currentSceneVideoUrl && currentSceneVideoUrl.startsWith("blob:")) {
-            URL.revokeObjectURL(currentSceneVideoUrl); // Clean up before resetting
+    // Helper functions
+    const updateState = useCallback((updates: Partial<AppState>) => {
+        setState((prev) => ({ ...prev, ...updates }));
+    }, []);
+
+    const resetToInitial = useCallback(() => {
+        if (state.currentSceneVideoUrl?.startsWith("blob:")) {
+            URL.revokeObjectURL(state.currentSceneVideoUrl);
         }
-        setCurrentSceneVideoUrl(null);
-        setCurrentSceneVideoMimeType(undefined);
-        setStoryParts([]);
-        setCurrentUserAction("");
-        setError(null);
-        setIsLoading(false);
-    };
 
-    const handleDirectStorySubmit = useCallback(
+        setState({
+            appMode: "initial",
+            worldTheme: null,
+            initialWorldDescription: null,
+            currentSceneVideoUrl: null,
+            currentSceneVideoMimeType: undefined,
+            storyParts: [],
+            currentUserAction: "",
+            isLoading: false,
+            loadingMessage: "",
+            error: null,
+        });
+    }, [state.currentSceneVideoUrl]);
+
+    // Event handlers
+    const handleStorySubmit = useCallback(
         async (prompt: string) => {
-            if (apiKeyMissing) {
-                setError("AI features are disabled. Administrator: Please configure the API key.");
+            if (!prompt?.trim()) {
+                updateState({ error: "Please enter a story idea to continue." });
                 return;
             }
-            setIsLoading(true);
-            setLoadingMessage("Our story wizards are hard at work...");
-            setDirectStory(null);
-            setError(null);
-            setAppMode("story_direct");
+
+            if (state.currentSceneVideoUrl?.startsWith("blob:")) {
+                URL.revokeObjectURL(state.currentSceneVideoUrl);
+            }
+
+            updateState({
+                isLoading: true,
+                loadingMessage: LOADING_MESSAGES.CREATING_WORLD,
+                error: null,
+                initialWorldDescription: null,
+                currentSceneVideoUrl: null,
+                currentSceneVideoMimeType: undefined,
+                storyParts: [],
+            });
 
             try {
-                const generatedStory = await generateStoryFromUserPrompt(prompt);
-                setDirectStory(generatedStory);
+                const { description, theme, videoUrl, videoMimeType } = await generateWorldSettingFromPrompt(prompt);
+
+                updateState({
+                    worldTheme: theme,
+                    initialWorldDescription: description,
+                    currentSceneVideoUrl: videoUrl,
+                    currentSceneVideoMimeType: videoMimeType,
+                    storyParts: [description],
+                    appMode: "world_exploration",
+                    isLoading: false,
+                });
             } catch (err) {
-                if (err instanceof Error) {
-                    setError(err.message);
-                } else {
-                    setError("An unexpected error occurred while crafting your story.");
-                }
-                setAppMode("initial");
-                console.error("Error generating direct story:", err);
-            } finally {
-                setIsLoading(false);
+                const errorMessage = err instanceof Error ? err.message : ERROR_MESSAGES.WORLD_CREATION;
+                updateState({
+                    error: errorMessage,
+                    isLoading: false,
+                });
+                console.error("Error creating story world:", err);
             }
         },
-        [apiKeyMissing],
+        [state.currentSceneVideoUrl, updateState],
     );
 
     const handleRandomizeWorld = useCallback(async () => {
-        if (apiKeyMissing) {
-            setError("AI features are disabled. Administrator: Please configure the API key.");
-            return;
+        if (state.currentSceneVideoUrl?.startsWith("blob:")) {
+            URL.revokeObjectURL(state.currentSceneVideoUrl);
         }
-        setIsLoading(true);
-        setLoadingMessage("Conjuring a new world and its sights (this may take a few minutes)...");
-        setError(null);
-        setInitialWorldDescription(null);
-        if (currentSceneVideoUrl && currentSceneVideoUrl.startsWith("blob:")) {
-            URL.revokeObjectURL(currentSceneVideoUrl);
-        }
-        setCurrentSceneVideoUrl(null);
-        setCurrentSceneVideoMimeType(undefined);
-        setStoryParts([]);
+
+        updateState({
+            isLoading: true,
+            loadingMessage: LOADING_MESSAGES.RANDOM_WORLD,
+            error: null,
+            initialWorldDescription: null,
+            currentSceneVideoUrl: null,
+            currentSceneVideoMimeType: undefined,
+            storyParts: [],
+        });
 
         try {
             const { description, theme, videoUrl, videoMimeType } = await generateRandomWorldSetting();
-            setWorldTheme(theme);
-            setInitialWorldDescription(description);
-            setCurrentSceneVideoUrl(videoUrl);
-            setCurrentSceneVideoMimeType(videoMimeType);
-            setStoryParts([description]);
-            setAppMode("world_exploration");
+
+            updateState({
+                worldTheme: theme,
+                initialWorldDescription: description,
+                currentSceneVideoUrl: videoUrl,
+                currentSceneVideoMimeType: videoMimeType,
+                storyParts: [description],
+                appMode: "world_exploration",
+                isLoading: false,
+            });
         } catch (err) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("An unexpected error occurred while creating a new world.");
-            }
+            const errorMessage = err instanceof Error ? err.message : ERROR_MESSAGES.RANDOM_WORLD;
+            updateState({
+                error: errorMessage,
+                isLoading: false,
+            });
             console.error("Error randomizing world:", err);
-            // Don't reset appMode to initial here, let user see error and retry from current state or reset explicitly
-        } finally {
-            setIsLoading(false);
         }
-    }, [apiKeyMissing, currentSceneVideoUrl]);
+    }, [state.currentSceneVideoUrl, updateState]);
 
     const handleContinueStoryInWorld = useCallback(async () => {
-        if (
-            apiKeyMissing ||
-            !worldTheme ||
-            !initialWorldDescription ||
-            storyParts.length === 0 ||
-            !currentUserAction.trim()
-        ) {
-            setError("Cannot continue: missing world details, API key, or your action.");
+        const { worldTheme, initialWorldDescription, storyParts, currentUserAction, currentSceneVideoUrl } = state;
+
+        if (!worldTheme || !initialWorldDescription || storyParts.length === 0 || !currentUserAction.trim()) {
+            updateState({ error: ERROR_MESSAGES.MISSING_DETAILS });
             return;
         }
-        setIsLoading(true);
-        setLoadingMessage("Weaving the next part of your adventure and its video (this may take a few minutes)...");
-        setError(null);
+
+        updateState({
+            isLoading: true,
+            loadingMessage: LOADING_MESSAGES.CONTINUING_STORY,
+            error: null,
+        });
 
         try {
             const { nextSceneTextDescription, nextSceneVideoUrl, nextSceneVideoMimeType } = await continueStoryInWorld(
@@ -158,145 +197,129 @@ const App: React.FC = () => {
                 storyParts,
                 currentUserAction.trim(),
             );
-            setStoryParts((prevParts: string[]) => [
-                ...prevParts,
-                `\n\nYour action: ${currentUserAction.trim()}`,
-                `\n\n${nextSceneTextDescription}`,
-            ]);
 
-            if (currentSceneVideoUrl && currentSceneVideoUrl.startsWith("blob:")) {
-                URL.revokeObjectURL(currentSceneVideoUrl); // Clean up old video before setting new one
+            if (currentSceneVideoUrl?.startsWith("blob:")) {
+                URL.revokeObjectURL(currentSceneVideoUrl);
             }
-            setCurrentSceneVideoUrl(nextSceneVideoUrl);
-            setCurrentSceneVideoMimeType(nextSceneVideoMimeType);
-            setCurrentUserAction("");
+
+            updateState({
+                storyParts: [
+                    ...storyParts,
+                    `\n\nYour action: ${currentUserAction.trim()}`,
+                    `\n\n${nextSceneTextDescription}`,
+                ],
+                currentSceneVideoUrl: nextSceneVideoUrl,
+                currentSceneVideoMimeType: nextSceneVideoMimeType,
+                currentUserAction: "",
+                isLoading: false,
+            });
         } catch (err) {
-            if (err instanceof Error) {
-                setError(err.message);
-            } else {
-                setError("An unexpected error occurred while continuing the adventure.");
-            }
+            const errorMessage = err instanceof Error ? err.message : ERROR_MESSAGES.STORY_CONTINUATION;
+            updateState({
+                error: errorMessage,
+                isLoading: false,
+            });
             console.error("Error continuing story in world:", err);
-        } finally {
-            setIsLoading(false);
         }
-    }, [apiKeyMissing, worldTheme, initialWorldDescription, storyParts, currentUserAction, currentSceneVideoUrl]);
+    }, [state, updateState]);
+
+    // Render helpers
+    const renderLoadingState = () => (
+        <div className="mt-8 flex flex-col items-center justify-center text-primary animate-fade-in">
+            <LoadingSpinner />
+            <p className="mt-3 text-lg font-semibold text-center text-brand-text">{state.loadingMessage}</p>
+        </div>
+    );
+
+    const renderErrorState = () => (
+        <Alert variant="destructive" className="mt-6 animate-fade-in">
+            <AlertIcon className="h-4 w-4" />
+            <AlertTitle>Oh no, a hiccup!</AlertTitle>
+            <AlertDescription className="mt-2">
+                {state.error}
+                <Button onClick={resetToInitial} variant="destructive" size="sm" className="mt-3">
+                    Start over
+                </Button>
+            </AlertDescription>
+        </Alert>
+    );
+
+    const renderInitialMode = () => (
+        <div className="space-y-8">
+            <StoryInput onSubmit={handleStorySubmit} isLoading={state.isLoading} />
+
+            <div className="relative my-8">
+                <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-amber-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                    <span className="bg-background px-4 text-brand-soft-text font-medium">OR</span>
+                </div>
+            </div>
+
+            <Button
+                onClick={handleRandomizeWorld}
+                disabled={state.isLoading}
+                variant="secondary"
+                size="xl"
+                className="w-full"
+            >
+                <DiceIcon className="w-6 h-6" />
+                Surprise Me! (Random Video Adventure)
+            </Button>
+        </div>
+    );
 
     const renderContent = () => {
-        if (isLoading) {
-            return (
-                <div className="mt-8 flex flex-col items-center justify-center text-primary animate-fade-in">
-                    <LoadingSpinner />
-                    <p className="mt-3 text-lg font-semibold text-center text-brand-text">{loadingMessage}</p>
-                </div>
-            );
+        if (state.isLoading) return renderLoadingState();
+        if (state.error) return renderErrorState();
+        if (state.appMode === "initial") return renderInitialMode();
+        if (state.appMode === "world_exploration" && (state.currentSceneVideoUrl || state.initialWorldDescription)) {
+            return null; // Full-screen mode handled in main render
         }
-
-        if (error) {
-            return (
-                <Alert variant="destructive" className="mt-6 animate-fade-in">
-                    <AlertIcon className="h-4 w-4" />
-                    <AlertTitle>Oh no, a hiccup!</AlertTitle>
-                    <AlertDescription className="mt-2">
-                        {error}
-                        <Button onClick={resetToInitial} variant="destructive" size="sm" className="mt-3">
-                            Start over
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-            );
-        }
-
-        if (appMode === "initial") {
-            return (
-                <div className="space-y-8">
-                    <StoryInput onSubmit={handleDirectStorySubmit} isLoading={isLoading} />
-
-                    <div className="relative my-8">
-                        <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t border-amber-300" />
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="bg-background px-4 text-brand-soft-text font-medium">OR</span>
-                        </div>
-                    </div>
-
-                    <Button
-                        onClick={handleRandomizeWorld}
-                        disabled={isLoading || apiKeyMissing}
-                        variant="secondary"
-                        size="xl"
-                        className="w-full"
-                    >
-                        <DiceIcon className="w-6 h-6" />
-                        Randomize World (Video Adventure!)
-                    </Button>
-                </div>
-            );
-        }
-
-        if (appMode === "world_exploration" && (currentSceneVideoUrl || initialWorldDescription)) {
-            // Return early for full-screen mode - this will be handled in the main render
-            return null;
-        }
-
-        if (appMode === "story_direct" && directStory) {
-            return (
-                <div className="mt-8 animate-fade-in space-y-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <BookOpenIcon className="w-8 h-8 text-secondary" />
-                        <h2 className="text-2xl font-bold text-brand-secondary">Your Adventure Unfolds...</h2>
-                    </div>
-
-                    <StoryDisplay story={directStory} />
-
-                    <Button onClick={resetToInitial} variant="ghost" size="lg" className="w-full mt-6">
-                        <HomeIcon className="w-4 h-4" />
-                        Start a new story
-                    </Button>
-                </div>
-            );
-        }
-
         return null;
     };
 
-    // Special full-screen mode for world exploration
-    if (appMode === "world_exploration" && (currentSceneVideoUrl || initialWorldDescription)) {
-        const currentSceneText = storyParts.length > 0 ? storyParts[storyParts.length - 1] : initialWorldDescription;
+    // Full-screen world exploration mode
+    if (state.appMode === "world_exploration" && (state.currentSceneVideoUrl || state.initialWorldDescription)) {
+        const currentSceneText =
+            state.storyParts.length > 0 ? state.storyParts[state.storyParts.length - 1] : state.initialWorldDescription;
 
         return (
             <div className="fixed inset-0 w-full h-full bg-black overflow-hidden">
-                {apiKeyMissing && <ApiKeyMissingBanner />}
-
                 {/* Full-screen video background */}
-                {currentSceneVideoUrl && (
-                    <VideoBackgroundDisplay videoSrc={currentSceneVideoUrl} type={currentSceneVideoMimeType} />
+                {state.currentSceneVideoUrl && (
+                    <VideoBackgroundDisplay
+                        videoSrc={state.currentSceneVideoUrl}
+                        type={state.currentSceneVideoMimeType}
+                    />
                 )}
 
                 {/* Fallback background when no video */}
-                {!currentSceneVideoUrl && initialWorldDescription && (
+                {!state.currentSceneVideoUrl && state.initialWorldDescription && (
                     <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 flex items-center justify-center">
                         <div className="text-center p-8 max-w-2xl">
-                            <p className="text-white text-xl italic">Your world: {initialWorldDescription}</p>
+                            <p className="text-white text-xl italic">Your world: {state.initialWorldDescription}</p>
                         </div>
                     </div>
                 )}
 
                 {/* Loading overlay */}
-                {isLoading && (
+                {state.isLoading && (
                     <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center z-50">
                         <Card className="bg-black/60 border-white/20 text-white p-8">
                             <CardContent className="flex flex-col items-center space-y-4 p-0">
                                 <LoadingSpinner />
-                                <p className="text-lg font-semibold text-center text-shadow-lg">{loadingMessage}</p>
+                                <p className="text-lg font-semibold text-center text-shadow-lg">
+                                    {state.loadingMessage}
+                                </p>
                             </CardContent>
                         </Card>
                     </div>
                 )}
 
                 {/* Error overlay */}
-                {error && (
+                {state.error && (
                     <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
                         <Card className="max-w-md mx-4">
                             <CardContent className="p-6">
@@ -304,7 +327,7 @@ const App: React.FC = () => {
                                     <AlertIcon className="h-4 w-4" />
                                     <AlertTitle>Oh no, a hiccup!</AlertTitle>
                                     <AlertDescription className="mt-2">
-                                        {error}
+                                        {state.error}
                                         <Button
                                             onClick={resetToInitial}
                                             variant="destructive"
@@ -321,20 +344,15 @@ const App: React.FC = () => {
                 )}
 
                 {/* Bottom overlay for controls - only show when not loading or error */}
-                {!isLoading && !error && (
-                    <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 bg-gradient-overlay-bottom backdrop-blur-sm z-10">
+                {!state.isLoading && !state.error && (
+                    <div className="absolute bottom-0 left-0 right-0 p-4 bg-transparent backdrop-blur-sm z-10">
                         {/* Current scene text display */}
                         {currentSceneText && (
-                            <Card className="mb-4 bg-black/40 border-white/20 max-w-4xl mx-auto">
-                                <CardContent className="p-4">
-                                    <p className="text-white text-sm leading-relaxed max-h-20 overflow-y-auto scrollbar-overlay">
-                                        <span className="font-semibold text-amber-300 text-shadow">
-                                            Current Scene:{" "}
-                                        </span>
-                                        <span className="text-shadow">{currentSceneText}</span>
-                                    </p>
-                                </CardContent>
-                            </Card>
+                            <>
+                                <blockquote className="mt-6 border-l-2 pl-6 italic">
+                                    <span className="text-shadow">{currentSceneText}</span>
+                                </blockquote>
+                            </>
                         )}
 
                         {/* Action input form */}
@@ -352,12 +370,12 @@ const App: React.FC = () => {
                                             htmlFor="user-action"
                                             className="block text-lg font-semibold text-white text-shadow-lg"
                                         >
-                                            What happens next in {worldTheme || "this world"}?
+                                            What happens next in {state.worldTheme || "this world"}?
                                         </label>
                                         <textarea
                                             id="user-action"
-                                            value={currentUserAction}
-                                            onChange={(e) => setCurrentUserAction(e.target.value)}
+                                            value={state.currentUserAction}
+                                            onChange={(e) => updateState({ currentUserAction: e.target.value })}
                                             placeholder="e.g., Explore the glowing cave, or Talk to the friendly dragon..."
                                             className={cn(
                                                 "w-full p-3 border-2 border-white/30 rounded-lg shadow-sm",
@@ -366,13 +384,13 @@ const App: React.FC = () => {
                                                 "bg-black/40 backdrop-blur-sm placeholder-white/60 text-white",
                                             )}
                                             rows={3}
-                                            disabled={isLoading}
+                                            disabled={state.isLoading}
                                         />
                                     </div>
                                     <div className="flex gap-3">
                                         <Button
                                             type="submit"
-                                            disabled={isLoading || !currentUserAction.trim()}
+                                            disabled={state.isLoading || !state.currentUserAction.trim()}
                                             variant="magic"
                                             size="lg"
                                             className="flex-1 text-shadow hover:glow-amber"
@@ -401,9 +419,7 @@ const App: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-brand-bg via-amber-100 to-orange-100 text-brand-text font-sans flex flex-col items-center p-0 selection:bg-brand-primary selection:text-white">
-            {apiKeyMissing && <ApiKeyMissingBanner />}
-
-            <header className={cn("text-center my-8 sm:my-10 animate-fade-in", apiKeyMissing && "pt-12")}>
+            <header className="text-center my-8 sm:my-10 animate-fade-in">
                 <div className="flex items-center justify-center space-x-3">
                     <SparkleIcon className="w-10 h-10 sm:w-12 sm:h-12 text-primary animate-bounce-sm" />
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary via-accent to-secondary">
@@ -420,12 +436,7 @@ const App: React.FC = () => {
 
             <footer className="w-full max-w-2xl text-center py-8 mt-8 text-brand-soft-text text-sm">
                 <p>&copy; {new Date().getFullYear()} Story Spark. Powered by imagination & AI.</p>
-                {appMode === "story_direct" && <p className="text-xs mt-1">Story generated with Google Gemini.</p>}
-                {appMode === "initial" && (
-                    <p className="text-xs mt-1">
-                        AI story generation by Google Gemini. Video adventures by Google Veo.
-                    </p>
-                )}
+                <p className="text-xs mt-1">AI story generation by Google Gemini. Video adventures by Google Veo.</p>
             </footer>
         </div>
     );
