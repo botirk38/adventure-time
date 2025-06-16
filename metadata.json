@@ -1,0 +1,5 @@
+{
+  "name": "Story Spark",
+  "description": "Story Spark is a delightful web app designed to help children co-create imaginative stories with the help of AI. Users provide a story idea, and the app uses Google's Gemini AI to generate a continuation, fostering creativity in a fun and engaging way.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,88 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Story Spark</title>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            'brand-bg': '#FFFDE7', // Lighter creamy yellow for more contrast
+            'brand-primary': '#FFB300', // Brighter Amber
+            'brand-secondary': '#FB8C00', // Brighter Orange
+            'brand-text': '#5D4037', // Slightly lighter Dark Brown
+            'brand-accent': '#FF7043', // Coral/Orange accent
+            'brand-light': '#FFFFFF',
+            'brand-soft-text': '#795548', // Softer brown for placeholders/subtitles
+          },
+          fontFamily: {
+            sans: ['Nunito', 'sans-serif'],
+          },
+          animation: {
+            'spin-slow': 'spin 3s linear infinite',
+            'pulse-gentle': 'pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'fade-in': 'fadeIn 0.5s ease-out',
+            'bounce-sm': 'bounceSm 1s infinite',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: 0, transform: 'translateY(10px)' },
+              '100%': { opacity: 1, transform: 'translateY(0)' },
+            },
+            pulse: { // Standard pulse can be used
+              '0%, 100%': { opacity: 1 },
+              '50%': { opacity: .8 },
+            },
+            bounceSm: {
+              '0%, 100%': {
+                transform: 'translateY(-5%)',
+                animationTimingFunction: 'cubic-bezier(0.8,0,1,1)'
+              },
+              '50%': {
+                transform: 'none',
+                animationTimingFunction: 'cubic-bezier(0,0,0.2,1)'
+              }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* For custom scrollbar, if desired - optional */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #FFFDE7; /* brand-bg */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #FFB300; /* brand-primary */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #FB8C00; /* brand-secondary */
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.5.1"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-brand-bg">
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
