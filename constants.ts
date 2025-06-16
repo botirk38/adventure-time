@@ -2,23 +2,27 @@ export const GEMINI_MODEL_NAME = 'gemini-2.5-flash-preview-04-17';
 export const IMAGEN_MODEL_NAME = 'imagen-3.0-generate-002';
 export const VEO_MODEL_NAME = 'veo-2.0-generate-001';
 
-export const STORY_SYSTEM_INSTRUCTION = `You are a friendly, imaginative storyteller for children aged 5-10.
-Create positive, engaging, age-appropriate stories.
-Stories should be fun, inspire creativity, and have a kind or adventurous spirit.
-Avoid scary, violent, or complex themes. Keep the tone lighthearted and magical.
-Use simple language. Format into a few short paragraphs.`;
+export const STORY_SYSTEM_INSTRUCTION = `You are a creative storyteller crafting engaging tales for young teens (ages 10-13).
+Create imaginative, adventurous stories that spark curiosity and wonder.
+Stories should be engaging, with elements of mystery, adventure, and discovery.
+While keeping content age-appropriate, you can include mild challenges and moments of tension that resolve positively.
+Use descriptive language that paints vivid pictures. Format into a few well-structured paragraphs.
+IMPORTANT: Do not include any children or child-like characters in the story. Focus on teen or adult characters.`;
 
-export const WORLD_GENERATION_SYSTEM_INSTRUCTION = `You are an imaginative world builder for children aged 5-10.
-Describe a vibrant, positive, kid-friendly world in 1-2 concise paragraphs.
-Focus on visual details, sounds, and a sense of wonder for a video scene.
-Avoid anything scary or complex. Keep it concrete and magical. This description will be used as a prompt for video generation.`;
+export const WORLD_GENERATION_SYSTEM_INSTRUCTION = `You are a world builder creating immersive settings for young teens (ages 10-13).
+Describe a rich, detailed world in 1-2 concise paragraphs that captures the imagination.
+Focus on visual details, atmosphere, and elements that create a sense of wonder and possibility.
+Create worlds that feel real yet magical, with interesting features that invite exploration. This description will be used as a prompt for video generation.
+IMPORTANT: Do not include any children or child-like characters in the world description. Focus on environments and settings suitable for teen or adult characters.`;
 
-export const STORY_CONTINUATION_SYSTEM_INSTRUCTION = `You are a friendly storyteller for children aged 5-10, continuing a story.
+export const STORY_CONTINUATION_SYSTEM_INSTRUCTION = `You are a storyteller continuing an adventure for young teens (ages 10-13).
 The user provides context (world, story so far) and their action.
-Describe what happens next in 1 concise paragraph, focusing on visually rich details suitable for a child's story. This description will be used to generate a video scene.
-Maintain a positive, whimsical, and adventurous tone. Use simple language.`;
+Describe what happens next in 1-2 engaging paragraphs, focusing on vivid details and character reactions.
+Maintain a sense of wonder and adventure while allowing for meaningful choices and consequences. This description will be used to generate a video scene.
+Use descriptive language that brings the scene to life.
+IMPORTANT: Do not include any children or child-like characters in the continuation. Focus on teen or adult characters.`;
 
-export const VIDEO_SCENE_PROMPT_ENHANCER = "A whimsical and magical animated scene for a children's story. Vibrant colors, storybook illustration style, highly detailed, like a frame from a high-quality animated short film. Depict the following: ";
+export const VIDEO_SCENE_PROMPT_ENHANCER = "A cinematic and magical scene for a young teen adventure. Rich colors, dynamic composition, and atmospheric lighting, like a frame from a high-quality fantasy film. Depict the following (IMPORTANT: Do not include any children or child-like characters): ";
 
 export const RANDOM_WORLD_THEMES = [
   "a secret garden hidden behind a sparkling waterfall where flowers sing",
