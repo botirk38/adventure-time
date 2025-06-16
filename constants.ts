@@ -3,6 +3,7 @@ export const AI_MODELS = {
     GEMINI: "gemini-2.5-flash-preview-04-17",
     IMAGEN: "imagen-3.0-generate-002",
     VEO: "veo-2.0-generate-001",
+    TTS: "gemini-2.5-flash-preview-tts",
 } as const;
 
 // AI System Instructions

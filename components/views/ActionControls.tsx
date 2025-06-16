@@ -27,7 +27,7 @@ export const ActionControls: React.FC<ActionControlsProps> = ({
     };
 
     return (
-        <div className="absolute bottom-4 left-4 right-4 z-10">
+        <div className="absolute bottom-4 left-4 right-12 z-10">
             <Card className="max-w-2xl mx-auto bg-black/60 border-white/20 backdrop-blur-md shadow-xl">
                 <CardContent className="p-4">
                     <form onSubmit={handleSubmit} className="space-y-3">

@@ -20,6 +20,11 @@ interface VideoResult {
     videoMimeType: string;
 }
 
+interface AudioResult {
+    audioUrl: string;
+    audioMimeType: string;
+}
+
 // Singleton AI client
 class AIClient {
     private static instance: GoogleGenAI | null = null;
@@ -51,6 +56,15 @@ const streamToBlob = async (stream: ReadableStream<Uint8Array>, mimeType: string
     } finally {
         reader.releaseLock();
     }
+};
+
+const base64ToBlob = (base64Data: string, mimeType: string): Blob => {
+    const binaryString = atob(base64Data);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: mimeType });
 };
 
 const getRandomTheme = (): string => {
@@ -208,6 +222,48 @@ export const generateRandomWorldSetting = async (): Promise<WorldSetting> => {
     } catch (error) {
         console.error("Random world generation error:", error);
         throw error instanceof Error ? error : new Error("Failed to generate random world setting");
+    }
+};
+
+// Text-to-Speech Generation
+export const generateSceneNarration = async (sceneText: string): Promise<AudioResult> => {
+    try {
+        if (!sceneText?.trim()) {
+            throw new Error("Scene text is required for narration generation.");
+        }
+
+        const client = AIClient.getInstance();
+
+        // Create a more engaging narration prompt
+        const narratorPrompt = `Narrate this story scene in an engaging, immersive way with a warm, storytelling voice: "${sceneText.trim()}"`;
+
+        const response = await client.models.generateContent({
+            model: AI_MODELS.TTS,
+            contents: [{ parts: [{ text: narratorPrompt }] }],
+            config: {
+                responseModalities: ["AUDIO"],
+                speechConfig: {
+                    voiceConfig: {
+                        prebuiltVoiceConfig: { voiceName: "Aoede" }, // Breezy, good for storytelling
+                    },
+                },
+            },
+        });
+
+        const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (!audioData) {
+            throw new Error("No audio data received from TTS generation.");
+        }
+
+        const audioMimeType = "audio/wav";
+        const audioBlob = base64ToBlob(audioData, audioMimeType);
+        const audioUrl = URL.createObjectURL(audioBlob);
+
+        console.log("Scene narration successfully generated");
+        return { audioUrl, audioMimeType };
+    } catch (error) {
+        console.error("Scene narration error:", error);
+        throw error instanceof Error ? error : new Error("Failed to generate scene narration");
     }
 };
 
